@@ -1,4 +1,3 @@
-// FillForm.tsx
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -21,14 +20,16 @@ interface FillFormProps {
 
 const FillForm: React.FC<FillFormProps> = ({ taskId }) => {
   const [taskType, setTaskType] = useState<TaskTypeDto | null>(null);
+  const [formValues, setFormValues] = useState<{ [key: number]: unknown }>({});
   const { showSnackbar } = useSnackbar();
-  const BASE_BACKEND_URL = 'http://192.168.15.4:5253'; // URL base do backend
+  const BASE_BACKEND_URL = 'http://192.168.15.4:5253';
 
   useEffect(() => {
     const fetchTaskType = async () => {
       const token = localStorage.getItem('accessToken') || '';
       try {
         const taskTypeData = await getTaskTypeById(token, taskId);
+        console.log('TaskType carregada:', taskTypeData); // Debug
         setTaskType(taskTypeData);
       } catch (error) {
         console.error("Erro ao buscar TaskType:", error);
@@ -51,15 +52,20 @@ const FillForm: React.FC<FillFormProps> = ({ taskId }) => {
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = fileName; // Define o nome do arquivo para download
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl); // Libera a memória
+      window.URL.revokeObjectURL(downloadUrl);
     } catch (error) {
       console.error("Erro ao baixar:", error);
       showSnackbar(`Erro ao baixar o arquivo ${fileName}`, "error");
     }
+  };
+
+  const handleFieldChange = (id: number, value: unknown) => {
+    console.log(`Campo ${id} alterado para:`, value); // Debug
+    setFormValues((prev) => ({ ...prev, [id]: value }));
   };
 
   if (!taskType) return <Typography>Carregando...</Typography>;
@@ -103,10 +109,11 @@ const FillForm: React.FC<FillFormProps> = ({ taskId }) => {
               name: option.name,
               type: option.idOpTy,
               required: option.isMandatory,
+              idTree: option.idTree, // Adiciona idTree
             })) || []
           }
-          values={{}}
-          onChange={() => {}}
+          values={formValues}
+          onChange={handleFieldChange}
         />
       </Paper>
     </Box>

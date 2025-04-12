@@ -22,8 +22,10 @@ import {
   CreateTaskRequest,
   TaskTypeDto,
   TaskTypeAttachmentDto,
+  TreeDto,
 } from "../services/types";
 import { useSnackbar } from "../contexts/SnackbarContext";
+import { getTrees } from "../services/tree";
 
 interface TaskFormProps {
   taskId: string | null;
@@ -45,6 +47,24 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, tasks, onSave }) => {
     title: false,
     description: false,
   });
+  const [trees, setTrees] = useState<TreeDto[]>([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const token = localStorage.getItem('accessToken') || '';
+        const [optionTypesData, treesData] = await Promise.all([
+          getOptionTypes(token),
+          getTrees(token),
+        ]);
+        setOptionTypes(optionTypesData);
+        setTrees(treesData);
+      } catch (error) {
+        console.error('Erro ao buscar dados:', error);
+      }
+    };
+    fetchData();
+  }, []);
 
   useEffect(() => {
     const fetchOptionTypes = async () => {
@@ -119,6 +139,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, tasks, onSave }) => {
       )
     );
   };
+  
 
   const handleSave = async () => {
     const hasErrors = !title.trim() || !description.trim();
@@ -250,11 +271,11 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, tasks, onSave }) => {
         </List>
       )}
 
-      <Paper sx={{ p: 2 }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
-          <Typography variant="h6">Requerimentos</Typography>
+<Paper sx={{ p: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant='h6'>Requerimentos</Typography>
           <Box>
-            <Button variant="text" onClick={handleAddRequirement}>
+            <Button variant='text' onClick={handleAddRequirement}>
               Novo
             </Button>
             <IconButton
@@ -269,15 +290,15 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, tasks, onSave }) => {
         {requirements.map((req) => (
           <Box
             key={req.idTaTyOp}
-            sx={{ display: "flex", alignItems: "center", mb: 1 }}
+            sx={{ display: 'flex', alignItems: 'center', mb: 1 }}
           >
             <TextField
-              label="Nome"
-              variant="outlined"
-              size="small"
+              label='Nome'
+              variant='outlined'
+              size='small'
               value={req.name}
               onChange={(e) =>
-                handleRequirementChange(req.idTaTyOp, "name", e.target.value)
+                handleRequirementChange(req.idTaTyOp, 'name', e.target.value)
               }
               sx={{ mr: 1, flex: 1 }}
             />
@@ -286,12 +307,12 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, tasks, onSave }) => {
               onChange={(e) =>
                 handleRequirementChange(
                   req.idTaTyOp,
-                  "idOpTy",
+                  'idOpTy',
                   e.target.value as number
                 )
               }
-              variant="outlined"
-              size="small"
+              variant='outlined'
+              size='small'
               sx={{ mr: 1, flex: 1 }}
             >
               {optionTypes.map((opt) => (
@@ -300,18 +321,43 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, tasks, onSave }) => {
                 </MenuItem>
               ))}
             </Select>
+            {req.idOpTy === 1 && ( // Exibir campo para árvore se idOpTy for 1
+              <Select
+                value={req.idTree || ''}
+                onChange={(e) =>
+                  handleRequirementChange(
+                    req.idTaTyOp,
+                    'idTree',
+                    Number(e.target.value)
+                  )
+                }
+                variant='outlined'
+                size='small'
+                sx={{ mr: 1, flex: 1 }}
+                displayEmpty
+              >
+                <MenuItem value='' disabled>
+                  Selecione uma árvore
+                </MenuItem>
+                {trees.map((tree) => (
+                  <MenuItem key={tree.idTree} value={tree.idTree}>
+                    {tree.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            )}
             <Switch
               checked={req.isMandatory}
               onChange={(e) =>
                 handleRequirementChange(
                   req.idTaTyOp,
-                  "isMandatory",
+                  'isMandatory',
                   e.target.checked
                 )
               }
             />
             <input
-              type="checkbox"
+              type='checkbox'
               checked={selectedRows.includes(req.idTaTyOp)}
               onChange={(e) =>
                 setSelectedRows(

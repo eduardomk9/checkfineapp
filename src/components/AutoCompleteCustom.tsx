@@ -1,100 +1,134 @@
-import React from 'react';
-import { Autocomplete, TextField, darken, lighten, styled, AutocompleteRenderGroupParams } from '@mui/material';
+import {
+  Autocomplete,
+  TextField,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  Box,
+} from "@mui/material";
+import { TreeView } from '@mui/x-tree-view/TreeView';
+import { TreeItem } from '@mui/x-tree-view/TreeItem';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import AccountTree from '@mui/icons-material/AccountTree';
+import CloseIcon from '@mui/icons-material/Close';
+import React, { useState } from "react";
+import { BranchDto } from "../services/types";
 
 export interface AutoCompleteCustomProps {
-  label: string;
-  options: { [key: string]: string | number | boolean | null | undefined }[];
-  value: { [key: string]: string | number | boolean | null | undefined } | null;
-  onChange: (value: { [key: string]: string | number | boolean | null | undefined } | null) => void;
+  title: string;
+  field?: string;
+  fieldId?: string;
   required?: boolean;
+  error?: boolean | string | null;
+  options: readonly unknown[];
+  value: unknown;
+  onChange: (selected: unknown) => void;
+  size?: "small" | "medium";
+  variant?: "filled" | "outlined" | "standard";
+  startAdornment?: React.ReactNode;
   disabled?: boolean;
-  field?: string; // Campo para exibir no label (padrão: "name")
-  fieldId?: string; // Campo para identificar o valor (padrão: "id")
-  groupByField?: string; // Campo para agrupar (padrão: "firstLetter")
-  startAdornment?: React.ReactNode; // Para ícones à esquerda
-  endAdornment?: React.ReactNode; // Para ícones à direita (ex.: abrir TreeView)
+  getOptionDisabled?: (option: unknown) => boolean;
+  treeData?: unknown;
 }
 
-const GroupHeader = styled('div')(({ theme }) => ({
-  position: 'sticky',
-  top: '-8px',
-  padding: '4px 10px',
-  color: theme.palette.primary.main,
-  backgroundColor:
-    theme.palette.mode === 'light'
-      ? lighten(theme.palette.primary.light, 0.85)
-      : darken(theme.palette.primary.main, 0.8),
-}));
+const AutoCompleteCustom = (props: AutoCompleteCustomProps) => {
+  const [openTreeModal, setOpenTreeModal] = useState(false);
 
-const GroupItems = styled('ul')({
-  padding: 0,
-});
+  const options = props?.options?.map((option) => ({
+    ...(typeof option === "object" && option !== null ? option : {}),
+  }));
 
-const AutoCompleteCustom: React.FC<AutoCompleteCustomProps> = ({
-  label,
-  options,
-  value,
-  onChange,
-  required,
-  disabled,
-  field = 'name',
-  fieldId = 'id',
-  groupByField = 'firstLetter',
-  startAdornment,
-  endAdornment,
-}) => {
-  const formattedOptions = options.map((option): { [key: string]: string | number | boolean | null | undefined } & { firstLetter: string } => {
-    const firstLetter = typeof option[field] === 'string' ? option[field][0]?.toUpperCase() : '';
-    return {
-      firstLetter: /[0-9]/.test(firstLetter) ? '0-9' : firstLetter,
-      ...option,
-    };
-  });
-
-  const isOptionEqualToValue = (
-    option: { [key: string]: string | number | boolean | null | undefined },
-    value: { [key: string]: string | number | boolean | null | undefined } | null
-  ) => {
-    return option?.[fieldId] === value?.[fieldId];
+  const isOptionEqualToValue = (option: unknown, value: unknown) => {
+    const optionRecord = option as Record<string, unknown>;
+    return optionRecord[props.fieldId ?? "idBranch"] === value;
   };
 
-  const renderGroup = (params: AutocompleteRenderGroupParams) => (
-    <li key={params.key}>
-      <GroupHeader>{params.group}</GroupHeader>
-      <GroupItems>{params.children}</GroupItems>
-    </li>
-  );
+  // Função recursiva para renderizar os nós da árvore no modal
+  const renderTree = (nodes: BranchDto[]) => {
+    return nodes.map((node) => (
+      <TreeItem key={node.idBranch} itemId={node.idBranch.toString()} label={node.name}>
+        {Array.isArray(node.childBranches) && node.childBranches.length > 0
+          ? renderTree(node.childBranches)
+          : null}
+      </TreeItem>
+    ));
+  };
 
   return (
-    <Autocomplete
-      options={formattedOptions.sort((a, b) =>
-        -(b[groupByField as keyof typeof formattedOptions[number]] as string).localeCompare(
-          a[groupByField as keyof typeof formattedOptions[number]] as string
-        )
+    <>
+      <Autocomplete
+        options={options}
+        getOptionLabel={(option) => {
+          const optionRecord = option as Record<string, unknown>;
+          return (optionRecord["path"] as string) || (optionRecord["name"] as string) || "";
+        }}
+        isOptionEqualToValue={isOptionEqualToValue}
+        getOptionDisabled={props.getOptionDisabled}
+        fullWidth
+        autoHighlight
+        value={options?.find((x: Record<string, unknown>) => x[props.fieldId ?? "idBranch"] === props.value) || null}
+        onChange={(_event: React.SyntheticEvent<Element, Event>, newValue: unknown) => {
+          const selectedValue = newValue as Record<string, unknown> | null;
+          props.onChange(selectedValue ? selectedValue[props.fieldId ?? "idBranch"] : null);
+        }}
+        noOptionsText={"Não encontrado..."}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            required={props.required}
+            variant={props.variant}
+            size={props.size}
+            label={props.title}
+            error={!!props.error}
+            helperText={props.error || ""}
+            InputProps={{
+              ...params.InputProps,
+              startAdornment: props.startAdornment,
+              endAdornment: (
+                <>
+                  {params.InputProps.endAdornment}
+                  {props.treeData && (
+                    <IconButton onClick={() => setOpenTreeModal(true)}>
+                      <AccountTree />
+                    </IconButton>
+                  )}
+                </>
+              ),
+            }}
+          />
+        )}
+        disabled={props.disabled}
+      />
+      {props.treeData && (
+        <Dialog open={openTreeModal} onClose={() => setOpenTreeModal(false)} maxWidth="md" fullWidth>
+          <DialogTitle>
+            <Box display="flex" alignItems="center" justifyContent="space-between">
+              {props.title}
+              <IconButton
+                aria-label="close"
+                onClick={() => setOpenTreeModal(false)}
+                sx={{ color: (theme) => theme.palette.grey[500] }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </Box>
+          </DialogTitle>
+          <DialogContent>
+            <TreeView
+              slots={{
+                collapseIcon: ExpandMoreIcon,
+                expandIcon: ChevronRightIcon,
+              }}
+              sx={{ minHeight: 240 }}
+            >
+              {renderTree((props.treeData as { branches: BranchDto[] }).branches)}
+            </TreeView>
+          </DialogContent>
+        </Dialog>
       )}
-      groupBy={(option) => option[groupByField as keyof typeof option] as string}
-      getOptionLabel={(option) => String(option[field as keyof typeof option] ?? '')}
-      isOptionEqualToValue={isOptionEqualToValue}
-      value={formattedOptions.find((x) => x[fieldId] === value?.[fieldId]) || null}
-      onChange={(_, newValue) => onChange(newValue || null)}
-      disabled={disabled}
-      fullWidth
-      renderInput={(params) => (
-        <TextField
-          {...params}
-          label={label}
-          required={required}
-          margin="normal"
-          InputProps={{
-            ...params.InputProps,
-            startAdornment,
-            endAdornment,
-          }}
-        />
-      )}
-      renderGroup={renderGroup}
-      noOptionsText="Nenhuma opção encontrada"
-    />
+    </>
   );
 };
 

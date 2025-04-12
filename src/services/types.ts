@@ -89,3 +89,24 @@ export interface UpdateTaskRequest {
   taskTypeAttachments: TaskTypeAttachmentDto[];
   taskTypeOptions?: TaskTypeOptionDto[];
 }
+
+export interface TreeDto {
+  idTree: number;
+  name: string;
+  description?: string;
+  onlyFinalOptions?: boolean;
+  tabulationTree?: boolean;
+  conformityTree?: boolean;
+  branches: BranchDto[];
+}
+
+export interface BranchDto {
+  idBranch: number;
+  idTree: number;
+  name: string;
+  description?: string;
+  parentBranchId?: number;
+  tags?: string;
+  childBranches: BranchDto[];
+}
+
