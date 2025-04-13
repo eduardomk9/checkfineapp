@@ -11,6 +11,7 @@ interface RoutePermission {
   
   export const routePermissions: RoutePermission[] = [
     { path: '/cadastrar-tarefa', allowedProfiles: ['SYSA'] }, // Só admins
+    { path: '/gerenciar-arvores', allowedProfiles: ['SYSA'] }, // Só admins
     { path: '/dashboard', allowedProfiles: ['SYSA'] }, // Só admins
     { path: '/users', allowedProfiles: ['SYSA'] }, // Só admins
     { path: '/settings', allowedProfiles: ['SYSA'] }, // Só admins
@@ -18,6 +19,7 @@ interface RoutePermission {
   
   export const menuItems: MenuItem[] = [
     { text: 'Gerenciar Tarefa', path: '/cadastrar-tarefa', allowedProfiles: ['SYSA'] },
+    { text: 'Gerenciar Árvores', path: '/gerenciar-arvores', allowedProfiles: ['SYSA'] },
     { text: 'Dashboard', path: '/dashboard', allowedProfiles: ['SYSA'] },
     { text: 'Usuários', path: '/users', allowedProfiles: ['SYSA'] },
     { text: 'Configurações', path: '/settings', allowedProfiles: ['SYSA'] },

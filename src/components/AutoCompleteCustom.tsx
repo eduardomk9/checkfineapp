@@ -48,7 +48,11 @@ const AutoCompleteCustom = (props: AutoCompleteCustomProps) => {
   // Função recursiva para renderizar os nós da árvore no modal
   const renderTree = (nodes: BranchDto[]) => {
     return nodes.map((node) => (
-      <TreeItem key={node.idBranch} itemId={node.idBranch.toString()} label={node.name}>
+      <TreeItem
+        key={node.idBranch ?? 0}
+        itemId={node.idBranch ? node.idBranch.toString() : ""}
+        label={node.name}
+      >
         {Array.isArray(node.childBranches) && node.childBranches.length > 0
           ? renderTree(node.childBranches)
           : null}

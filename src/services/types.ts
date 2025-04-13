@@ -97,6 +97,7 @@ export interface TreeDto {
   onlyFinalOptions?: boolean;
   tabulationTree?: boolean;
   conformityTree?: boolean;
+  isActive: boolean;
   branches: BranchDto[];
 }
 
@@ -107,6 +108,7 @@ export interface BranchDto {
   description?: string;
   parentBranchId?: number;
   tags?: string;
+  isActive: boolean;
   childBranches: BranchDto[];
 }
 

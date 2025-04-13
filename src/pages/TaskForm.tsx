@@ -12,6 +12,7 @@ import {
   List,
   ListItem,
   ListItemText,
+  Autocomplete,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useDropzone } from "react-dropzone";
@@ -33,13 +34,14 @@ interface TaskFormProps {
   onSave: () => void;
 }
 
+
 const TaskForm: React.FC<TaskFormProps> = ({ taskId, tasks, onSave }) => {
   const { showSnackbar } = useSnackbar();
   const isNew = taskId === null;
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [newAttachments, setNewAttachments] = useState<File[]>([]); // Novos anexos
-  const [existingAttachments, setExistingAttachments] = useState<TaskTypeAttachmentDto[]>([]); // Anexos existentes
+  const [newAttachments, setNewAttachments] = useState<File[]>([]);
+  const [existingAttachments, setExistingAttachments] = useState<TaskTypeAttachmentDto[]>([]);
   const [requirements, setRequirements] = useState<TaskTypeOptionDto[]>([]);
   const [optionTypes, setOptionTypes] = useState<OptionType[]>([]);
   const [selectedRows, setSelectedRows] = useState<number[]>([]);
@@ -52,7 +54,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, tasks, onSave }) => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const token = localStorage.getItem('accessToken') || '';
+        const token = localStorage.getItem("accessToken") || "";
         const [optionTypesData, treesData] = await Promise.all([
           getOptionTypes(token),
           getTrees(token),
@@ -60,23 +62,10 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, tasks, onSave }) => {
         setOptionTypes(optionTypesData);
         setTrees(treesData);
       } catch (error) {
-        console.error('Erro ao buscar dados:', error);
+        console.error("Erro ao buscar dados:", error);
       }
     };
     fetchData();
-  }, []);
-
-  useEffect(() => {
-    const fetchOptionTypes = async () => {
-      try {
-        const token = localStorage.getItem("accessToken") || "";
-        const optionTypesData = await getOptionTypes(token);
-        setOptionTypes(optionTypesData);
-      } catch (error) {
-        console.error("Erro ao buscar OptionTypes:", error);
-      }
-    };
-    fetchOptionTypes();
   }, []);
 
   useEffect(() => {
@@ -86,7 +75,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, tasks, onSave }) => {
         setTitle(task.title);
         setDescription(task.description || "");
         setRequirements(task.taskTypeOptions || []);
-        setExistingAttachments(task.taskTypeAttachments || []); // Carrega anexos existentes
+        setExistingAttachments(task.taskTypeAttachments || []);
       }
     }
   }, [taskId, tasks, isNew]);
@@ -104,19 +93,22 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, tasks, onSave }) => {
   };
 
   const handleRemoveExistingAttachment = (idTaTyAt: number) => {
-    setExistingAttachments((prev) => prev.filter((att) => att.idTaTyAt !== idTaTyAt));
+    setExistingAttachments((prev) =>
+      prev.filter((att) => att.idTaTyAt !== idTaTyAt)
+    );
   };
 
   const handleAddRequirement = () => {
-    const newId = Math.max(...requirements.map((r) => r.idTaTyOp), 0) + 1;
-    setRequirements([
-      ...requirements,
+    const newId = Math.max(0, ...requirements.map((r) => r.idTaTyOp)) + 1;
+    setRequirements((prev) => [
+      ...prev,
       {
         idTaTyOp: newId,
         idTaTy: isNew ? 0 : Number(taskId),
         name: "",
         idOpTy: optionTypes[0]?.idOpTy || 1,
         isMandatory: false,
+        idTree: undefined, // Inicializa como undefined
       },
     ]);
   };
@@ -131,7 +123,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, tasks, onSave }) => {
   const handleRequirementChange = (
     id: number,
     field: keyof TaskTypeOptionDto,
-    value: string | number | boolean
+    value: string | number | boolean | undefined
   ) => {
     setRequirements((prev) =>
       prev.map((req) =>
@@ -139,7 +131,6 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, tasks, onSave }) => {
       )
     );
   };
-  
 
   const handleSave = async () => {
     const hasErrors = !title.trim() || !description.trim();
@@ -147,10 +138,11 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, tasks, onSave }) => {
       title: !title.trim(),
       description: !description.trim(),
     });
-
     if (hasErrors) return;
 
     const token = localStorage.getItem("accessToken") || "";
+
+    console.log("Requirements antes de salvar:", requirements); // Debug
 
     try {
       if (isNew) {
@@ -161,6 +153,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, tasks, onSave }) => {
           taskTypeOptions: requirements.map((req) => ({
             name: req.name,
             idOpTy: req.idOpTy,
+            idTree: req.idTree, // Pode ser undefined
             isMandatory: req.isMandatory,
           })),
         };
@@ -169,23 +162,60 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, tasks, onSave }) => {
         const formData = new FormData();
         formData.append("idTaTy", taskId!);
         formData.append("title", title);
-        if (description) formData.append("description", description);
-        newAttachments.forEach((file) => formData.append("newAttachments", file));
+        formData.append("description", description);
+        newAttachments.forEach((file) =>
+          formData.append("newAttachments", file)
+        );
         existingAttachments.forEach((att, index) => {
-          formData.append(`taskTypeAttachments[${index}][idTaTyAt]`, att.idTaTyAt.toString());
-          formData.append(`taskTypeAttachments[${index}][idTaTy]`, att.idTaTy.toString());
-          formData.append(`taskTypeAttachments[${index}][url]`, att.url);
-          formData.append(`taskTypeAttachments[${index}][fileName]`, att.fileName);
+          formData.append(
+            `taskTypeAttachments[${index}][idTaTyAt]`,
+            att.idTaTyAt.toString()
+          );
+          formData.append(
+            `taskTypeAttachments[${index}][idTaTy]`,
+            att.idTaTy.toString()
+          );
+          formData.append(
+            `taskTypeAttachments[${index}][url]`,
+            att.url
+          );
+          formData.append(
+            `taskTypeAttachments[${index}][fileName]`,
+            att.fileName
+          );
         });
         requirements.forEach((req, index) => {
-          formData.append(`taskTypeOptions[${index}][idTaTyOp]`, req.idTaTyOp.toString());
-          formData.append(`taskTypeOptions[${index}][idTaTy]`, taskId!);
-          formData.append(`taskTypeOptions[${index}][name]`, req.name);
-          formData.append(`taskTypeOptions[${index}][idOpTy]`, req.idOpTy.toString());
-          formData.append(`taskTypeOptions[${index}][isMandatory]`, req.isMandatory.toString());
-          if (req.idTree) formData.append(`taskTypeOptions[${index}][idTree]`, req.idTree.toString());
+          formData.append(
+            `taskTypeOptions[${index}][idTaTyOp]`,
+            req.idTaTyOp.toString()
+          );
+          formData.append(
+            `taskTypeOptions[${index}][idTaTy]`,
+            taskId!
+          );
+          formData.append(
+            `taskTypeOptions[${index}][name]`,
+            req.name
+          );
+          formData.append(
+            `taskTypeOptions[${index}][idOpTy]`,
+            req.idOpTy.toString()
+          );
+          formData.append(
+            `taskTypeOptions[${index}][isMandatory]`,
+            req.isMandatory.toString()
+          );
+          // Só adiciona idTree se for um número válido
+          if (req.idTree != null && req.idTree !== 0) {
+            console.log(`Adicionando idTree [${index}]: ${req.idTree}`); // Debug
+            formData.append(
+              `taskTypeOptions[${index}][idTree]`,
+              req.idTree.toString()
+            );
+          } else {
+            console.log(`idTree não adicionado [${index}]: ${req.idTree}`); // Debug
+          }
         });
-
         await updateTaskType(token, formData);
       }
       onSave();
@@ -245,37 +275,49 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, tasks, onSave }) => {
           {existingAttachments.map((att) => (
             <ListItem
               key={att.idTaTyAt}
-              sx={{ backgroundColor: "#f5f5f5", mb: 1, borderRadius: 1 }} // Fundo cinza claro
+              sx={{ backgroundColor: "#f5f5f5", mb: 1, borderRadius: 1 }}
               secondaryAction={
-                <IconButton edge="end" onClick={() => handleRemoveExistingAttachment(att.idTaTyAt)}>
+                <IconButton
+                  edge="end"
+                  onClick={() => handleRemoveExistingAttachment(att.idTaTyAt)}
+                >
                   <DeleteIcon />
                 </IconButton>
               }
             >
-              <ListItemText primary={att.fileName} primaryTypographyProps={{ style: { color: "#333" } }} /> {/* Texto contrastante */}
+              <ListItemText
+                primary={att.fileName}
+                primaryTypographyProps={{ style: { color: "#333" } }}
+              />
             </ListItem>
           ))}
           {newAttachments.map((file, index) => (
             <ListItem
               key={`new-${index}`}
-              sx={{ backgroundColor: "#f5f5f5", mb: 1, borderRadius: 1 }} // Fundo cinza claro
+              sx={{ backgroundColor: "#f5f5f5", mb: 1, borderRadius: 1 }}
               secondaryAction={
-                <IconButton edge="end" onClick={() => handleRemoveNewAttachment(index)}>
+                <IconButton
+                  edge="end"
+                  onClick={() => handleRemoveNewAttachment(index)}
+                >
                   <DeleteIcon />
                 </IconButton>
               }
             >
-              <ListItemText primary={file.name} primaryTypographyProps={{ style: { color: "#333" } }} /> {/* Texto contrastante */}
+              <ListItemText
+                primary={file.name}
+                primaryTypographyProps={{ style: { color: "#333" } }}
+              />
             </ListItem>
           ))}
         </List>
       )}
 
-<Paper sx={{ p: 2 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-          <Typography variant='h6'>Requerimentos</Typography>
+      <Paper sx={{ p: 2 }}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
+          <Typography variant="h6">Requerimentos</Typography>
           <Box>
-            <Button variant='text' onClick={handleAddRequirement}>
+            <Button variant="text" onClick={handleAddRequirement}>
               Novo
             </Button>
             <IconButton
@@ -288,31 +330,33 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, tasks, onSave }) => {
         </Box>
 
         {requirements.map((req) => (
-          <Box
-            key={req.idTaTyOp}
-            sx={{ display: 'flex', alignItems: 'center', mb: 1 }}
-          >
+          <Box key={req.idTaTyOp} sx={{ display: "flex", alignItems: "center", mb: 1 }}>
             <TextField
-              label='Nome'
-              variant='outlined'
-              size='small'
+              label="Nome"
+              variant="outlined"
+              size="small"
               value={req.name}
               onChange={(e) =>
-                handleRequirementChange(req.idTaTyOp, 'name', e.target.value)
+                handleRequirementChange(req.idTaTyOp, "name", e.target.value)
               }
               sx={{ mr: 1, flex: 1 }}
             />
+
             <Select
               value={req.idOpTy}
-              onChange={(e) =>
+              onChange={(e) => {
                 handleRequirementChange(
                   req.idTaTyOp,
-                  'idOpTy',
+                  "idOpTy",
                   e.target.value as number
-                )
-              }
-              variant='outlined'
-              size='small'
+                );
+                // Limpar idTree se idOpTy mudar para algo diferente de 1
+                if (e.target.value !== 1) {
+                  handleRequirementChange(req.idTaTyOp, "idTree", undefined);
+                }
+              }}
+              variant="outlined"
+              size="small"
               sx={{ mr: 1, flex: 1 }}
             >
               {optionTypes.map((opt) => (
@@ -321,49 +365,51 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, tasks, onSave }) => {
                 </MenuItem>
               ))}
             </Select>
-            {req.idOpTy === 1 && ( // Exibir campo para árvore se idOpTy for 1
-              <Select
-                value={req.idTree || ''}
-                onChange={(e) =>
-                  handleRequirementChange(
-                    req.idTaTyOp,
-                    'idTree',
-                    Number(e.target.value)
-                  )
-                }
-                variant='outlined'
-                size='small'
-                sx={{ mr: 1, flex: 1 }}
-                displayEmpty
-              >
-                <MenuItem value='' disabled>
-                  Selecione uma árvore
-                </MenuItem>
-                {trees.map((tree) => (
-                  <MenuItem key={tree.idTree} value={tree.idTree}>
-                    {tree.name}
-                  </MenuItem>
-                ))}
-              </Select>
+
+            {req.idOpTy === 1 && (
+              <Box sx={{ flex: 1, mr: 1 }}>
+                <Autocomplete
+                  options={trees}
+                  getOptionLabel={(tree) => tree.name || ""}
+                  isOptionEqualToValue={(a, b) => a.idTree === b.idTree}
+                  value={trees.find((t) => t.idTree === req.idTree) || null}
+                  onChange={(_, value) => {
+                    const newIdTree = value ? value.idTree : undefined;
+                    console.log(`Selecionado idTree para req ${req.idTaTyOp}: ${newIdTree}`); // Debug
+                    handleRequirementChange(req.idTaTyOp, "idTree", newIdTree);
+                  }}
+                  size="small"
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Selecione uma árvore"
+                      variant="outlined"
+                      error={false}
+                    />
+                  )}
+                />
+              </Box>
             )}
+
             <Switch
               checked={req.isMandatory}
               onChange={(e) =>
                 handleRequirementChange(
                   req.idTaTyOp,
-                  'isMandatory',
+                  "isMandatory",
                   e.target.checked
                 )
               }
             />
+
             <input
-              type='checkbox'
+              type="checkbox"
               checked={selectedRows.includes(req.idTaTyOp)}
               onChange={(e) =>
-                setSelectedRows(
+                setSelectedRows((prev) =>
                   e.target.checked
-                    ? [...selectedRows, req.idTaTyOp]
-                    : selectedRows.filter((id) => id !== req.idTaTyOp)
+                    ? [...prev, req.idTaTyOp]
+                    : prev.filter((id) => id !== req.idTaTyOp)
                 )
               }
             />

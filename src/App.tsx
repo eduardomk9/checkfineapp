@@ -7,6 +7,7 @@ import Layout from './components/Layout';
 import { useAuth } from './hooks/useAuth';
 import { hasRouteAccess } from './utils/permissions';
 import TaskAdminPage from './pages/TaskAdminPage';
+import TreeAdminPage from './pages/TreeAdminPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
@@ -42,6 +43,7 @@ const App: React.FC = () => {
             }
           >
             <Route path="cadastrar-tarefa" element={<TaskAdminPage />} />
+            <Route path="gerenciar-arvores" element={<TreeAdminPage />} /> 
             <Route path="dashboard" element={<div>dashboard (em construção)</div>} />
             <Route path="users" element={<div>Usuários (em construção)</div>} />
             <Route path="settings" element={<div>Configurações (em construção)</div>} />
