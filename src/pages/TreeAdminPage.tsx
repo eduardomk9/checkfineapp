@@ -22,13 +22,19 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
-import { TreeView } from '@mui/x-tree-view/TreeView';
-import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { getTrees, getTreeById, createBranch, createTree, deleteTree } from "../services/tree"; // Adicionei createTree
+import {
+  getTrees,
+  getTreeById,
+  createBranch,
+  createTree,
+  deleteTree,
+  updateTree,
+  updateBranch,
+  deleteBranch,
+} from "../services/tree";
 import { TreeDto, BranchDto } from "../services/types";
 import { useSnackbar } from "../contexts/SnackbarContext";
+import SelectTableTreeView from "../components/SelectableTreeView";
 
 const TreeAdminPage: React.FC = () => {
   const [trees, setTrees] = useState<TreeDto[]>([]);
@@ -43,6 +49,7 @@ const TreeAdminPage: React.FC = () => {
   const [isNewBranch, setIsNewBranch] = useState(true);
   const [newBranchName, setNewBranchName] = useState("");
   const [newBranchDescription, setNewBranchDescription] = useState("");
+  const [newBranchTags, setNewBranchTags] = useState("");
   const [parentBranchId, setParentBranchId] = useState<number | null>(null);
   const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
@@ -66,14 +73,14 @@ const TreeAdminPage: React.FC = () => {
     const fetchTrees = async () => {
       const token = localStorage.getItem("accessToken") || "";
       const treeData = await getTrees(token);
-      setTrees(treeData);
+      setTrees(treeData.map((tree) => ({ ...tree, branches: tree.branches || [], name: tree.name || "" })));
     };
     fetchTrees();
   }, []);
 
   useEffect(() => {
     if (selectedTree) {
-      setTreeName(selectedTree.name);
+      setTreeName(selectedTree.name || "");
       setTreeDescription(selectedTree.description || "");
       setOnlyFinalOptions(selectedTree.onlyFinalOptions || false);
       setTabulationTree(selectedTree.tabulationTree || false);
@@ -90,7 +97,7 @@ const TreeAdminPage: React.FC = () => {
   const handleSelectTree = async (treeId: number) => {
     const token = localStorage.getItem("accessToken") || "";
     const tree = await getTreeById(token, treeId);
-    setSelectedTree(tree);
+    setSelectedTree({ ...tree, branches: tree.branches || [], name: tree.name || "" });
   };
 
   const handleDeleteTree = async () => {
@@ -117,17 +124,30 @@ const TreeAdminPage: React.FC = () => {
   const handleSaveTreeDetails = async () => {
     if (!selectedTree) return;
     try {
-      // Implement API call to update tree details
+      const token = localStorage.getItem("accessToken") || "";
       const updatedTree: TreeDto = {
         ...selectedTree,
-        name: treeName,
+        name: treeName || selectedTree.name || "", // Ensure name is never undefined
         description: treeDescription,
         onlyFinalOptions,
         tabulationTree,
         conformityTree,
+        branches: selectedTree.branches || [],
       };
-      setTrees(trees.map((tree) => (tree.idTree === selectedTree.idTree ? updatedTree : tree)));
-      setSelectedTree(updatedTree);
+      await updateTree(token, updatedTree);
+      // Re-fetch the tree to ensure consistency
+      const refreshedTree = await getTreeById(token, selectedTree.idTree);
+      const normalizedTree = {
+        ...refreshedTree,
+        branches: refreshedTree.branches || [],
+        name: refreshedTree.name || "",
+      };
+      setTrees(
+        trees.map((tree) =>
+          tree.idTree === selectedTree.idTree ? normalizedTree : tree
+        )
+      );
+      setSelectedTree(normalizedTree);
       showSnackbar("Detalhes da árvore salvos com sucesso!", "success");
     } catch (error) {
       console.error("Erro ao salvar os detalhes da árvore:", error);
@@ -135,7 +155,10 @@ const TreeAdminPage: React.FC = () => {
     }
   };
 
-  const handleOpenConfirmDialog = (treeId: number, event: React.MouseEvent<HTMLButtonElement>) => {
+  const handleOpenConfirmDialog = (
+    treeId: number,
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
     event.stopPropagation();
     setTreeToDelete(treeId);
     setConfirmDialogOpen(true);
@@ -147,7 +170,10 @@ const TreeAdminPage: React.FC = () => {
   };
 
   const filteredTrees = trees.filter(
-    (tree) => tree && tree.name && tree.name.toLowerCase().includes(searchQuery.toLowerCase())
+    (tree) =>
+      tree &&
+      tree.name &&
+      tree.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const paginatedTrees = filteredTrees.slice(
@@ -157,12 +183,15 @@ const TreeAdminPage: React.FC = () => {
 
   const totalPages = Math.ceil(filteredTrees.length / itemsPerPage);
 
-  const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
+  const handlePageChange = (
+    _event: React.ChangeEvent<unknown>,
+    value: number
+  ) => {
     setPage(value);
   };
 
   const handleOpenNewTreeDialog = () => {
-    setNewTreeDialogOpen(true); // Abre o novo diálogo de árvore
+    setNewTreeDialogOpen(true);
   };
 
   const handleCloseNewTreeDialog = () => {
@@ -178,7 +207,7 @@ const TreeAdminPage: React.FC = () => {
     try {
       const token = localStorage.getItem("accessToken") || "";
       const newTree: TreeDto = {
-        idTree: 0, // Será definido pelo backend
+        idTree: 0,
         name: newTreeName,
         description: newTreeDescription,
         onlyFinalOptions: newOnlyFinalOptions,
@@ -190,9 +219,8 @@ const TreeAdminPage: React.FC = () => {
       await createTree(token, newTree);
       showSnackbar("Árvore criada com sucesso!", "success");
 
-      // Atualizar a listagem de árvores
       const updatedTrees = await getTrees(token);
-      setTrees(updatedTrees);
+      setTrees(updatedTrees.map((tree) => ({ ...tree, branches: tree.branches || [], name: tree.name || "" })));
 
       handleCloseNewTreeDialog();
     } catch (error) {
@@ -201,11 +229,12 @@ const TreeAdminPage: React.FC = () => {
     }
   };
 
-  const handleOpenNewBranchDialog = () => {
+  const handleOpenNewBranchDialog = (isRoot: boolean) => {
     setIsNewBranch(true);
-    setParentBranchId(selectedBranchId);
+    setParentBranchId(isRoot ? null : selectedBranchId);
     setNewBranchName("");
     setNewBranchDescription("");
+    setNewBranchTags("");
     setBranchDialogOpen(true);
     setMenuAnchorEl(null);
   };
@@ -222,11 +251,12 @@ const TreeAdminPage: React.FC = () => {
         }
         return undefined;
       };
-      const branch = findBranch(selectedTree.branches);
+      const branch = findBranch(selectedTree.branches || []);
       if (branch) {
         setIsNewBranch(false);
         setNewBranchName(branch.name);
         setNewBranchDescription(branch.description || "");
+        setNewBranchTags(branch.tags || "");
         setParentBranchId(branch.parentBranchId || null);
         setBranchDialogOpen(true);
       }
@@ -234,50 +264,72 @@ const TreeAdminPage: React.FC = () => {
     setMenuAnchorEl(null);
   };
 
-  const handleDeleteBranch = () => {
-    // Implement branch deletion logic here
-    showSnackbar("Ramo deletado com sucesso!", "success");
-    setMenuAnchorEl(null);
+  const handleDeleteBranch = async () => {
+    if (!selectedBranchId || !selectedTree) return;
+    try {
+      const token = localStorage.getItem("accessToken") || "";
+      const success = await deleteBranch(token, selectedBranchId);
+      if (success) {
+        const updatedTree = await getTreeById(token, selectedTree.idTree);
+        const normalizedTree = {
+          ...updatedTree,
+          branches: updatedTree.branches || [],
+          name: updatedTree.name || "",
+        };
+        setSelectedTree(normalizedTree); // Atualiza a árvore selecionada
+        setTrees(
+          trees.map((tree) =>
+            tree.idTree === selectedTree.idTree ? normalizedTree : tree
+          )
+        ); // Atualiza a lista de árvores
+        setSelectedBranchId(null);
+        showSnackbar("Ramo deletado com sucesso!", "success");
+      } else {
+        showSnackbar("Erro ao deletar o ramo.", "error");
+      }
+    } catch (error) {
+      console.error("Erro ao deletar o ramo:", error);
+      showSnackbar("Erro ao deletar o ramo.", "error");
+    } finally {
+      setMenuAnchorEl(null);
+    }
   };
 
   const handleSaveBranch = async () => {
+    if (!selectedTree) return;
     try {
       const token = localStorage.getItem("accessToken") || "";
+      const branchDto: BranchDto = {
+        idBranch: isNewBranch ? 0 : selectedBranchId!,
+        idTree: selectedTree.idTree,
+        name: newBranchName,
+        description: newBranchDescription || undefined,
+        parentBranchId: parentBranchId ?? undefined,
+        isActive: true,
+        tags: newBranchTags.trim() || undefined,
+        childBranches: [],
+      };
+
       if (isNewBranch) {
-        const branchDto: BranchDto = {
-          idBranch: 0, // Será ignorado pelo backend
-          idTree: selectedTree!.idTree,
-          name: newBranchName,
-          description: newBranchDescription,
-          parentBranchId: parentBranchId || undefined,
-          isActive: true,
-          tags: "",
-          childBranches: [],
-        };
         await createBranch(token, branchDto);
         showSnackbar("Ramo criado com sucesso!", "success");
       } else {
-        // Implement API call to update branch
+        await updateBranch(token, branchDto);
         showSnackbar("Ramo atualizado com sucesso!", "success");
       }
-      const updatedTree = await getTreeById(token, selectedTree!.idTree);
-      setSelectedTree(updatedTree);
+
+      const updatedTree = await getTreeById(token, selectedTree.idTree);
+      setSelectedTree({ ...updatedTree, branches: updatedTree.branches || [], name: updatedTree.name || "" });
     } catch (error) {
       console.error("Erro ao salvar o ramo:", error);
       showSnackbar("Erro ao salvar o ramo.", "error");
     } finally {
       setBranchDialogOpen(false);
+      setNewBranchName("");
+      setNewBranchDescription("");
+      setNewBranchTags("");
+      setParentBranchId(null);
     }
-  };
-
-  const renderTree = (nodes: BranchDto[]) => {
-    return nodes.map((node) => (
-      <TreeItem key={node.idBranch} itemId={node.idBranch.toString()} label={node.name}>
-        {Array.isArray(node.childBranches) && node.childBranches.length > 0
-          ? renderTree(node.childBranches)
-          : null}
-      </TreeItem>
-    ));
   };
 
   return (
@@ -304,8 +356,21 @@ const TreeAdminPage: React.FC = () => {
         }}
       >
         {/* Tree List */}
-        <Box sx={{ width: { xs: "100%", sm: "30%" }, minWidth: { sm: "300px" }, height: { sm: "100%" } }}>
-          <Paper sx={{ p: 2, bgcolor: "#fff", height: { sm: "100%" }, overflowY: { sm: "auto" } }}>
+        <Box
+          sx={{
+            width: { xs: "100%", sm: "30%" },
+            minWidth: { sm: "300px" },
+            height: { sm: "100%" },
+          }}
+        >
+          <Paper
+            sx={{
+              p: 2,
+              bgcolor: "#fff",
+              height: { sm: "100%" },
+              overflowY: { sm: "auto" },
+            }}
+          >
             <Box sx={{ display: "flex", alignItems: "center", mb: 2, gap: 2 }}>
               <TextField
                 label="Pesquisar"
@@ -334,7 +399,9 @@ const TreeAdminPage: React.FC = () => {
                   secondaryAction={
                     <IconButton
                       edge="end"
-                      onClick={(event) => handleOpenConfirmDialog(tree.idTree, event)}
+                      onClick={(event) =>
+                        handleOpenConfirmDialog(tree.idTree, event)
+                      }
                     >
                       <DeleteIcon sx={{ color: "#d32f2f" }} />
                     </IconButton>
@@ -343,7 +410,10 @@ const TreeAdminPage: React.FC = () => {
                   sx={{
                     "&:hover": { bgcolor: "#f0f0f0" },
                     cursor: "pointer",
-                    bgcolor: selectedTree?.idTree === tree.idTree ? "#e0e0e0" : "transparent",
+                    bgcolor:
+                      selectedTree?.idTree === tree.idTree
+                        ? "#e0e0e0"
+                        : "transparent",
                   }}
                 >
                   <ListItemText primary={tree.name} />
@@ -376,12 +446,25 @@ const TreeAdminPage: React.FC = () => {
         >
           {/* Tree Details */}
           <Paper sx={{ p: 2, bgcolor: "#fff", flexShrink: 0 }}>
-            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                mb: 2,
+              }}
+            >
               <Typography variant="h5">
-                {selectedTree ? "Editar Detalhes da Árvore" : "Selecione uma árvore"}
+                {selectedTree
+                  ? "Editar Detalhes da Árvore"
+                  : "Selecione uma árvore"}
               </Typography>
               {selectedTree && (
-                <Button variant="contained" size="small" onClick={handleSaveTreeDetails}>
+                <Button
+                  variant="contained"
+                  size="small"
+                  onClick={handleSaveTreeDetails}
+                >
                   Salvar
                 </Button>
               )}
@@ -436,8 +519,23 @@ const TreeAdminPage: React.FC = () => {
           </Paper>
 
           {/* Tree Visualization */}
-          <Paper sx={{ p: 2, bgcolor: "#fff", flexGrow: { sm: 1 }, overflowY: { sm: "auto" }, height: { xs: "400px", sm: "auto" } }}>
-            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+          <Paper
+            sx={{
+              p: 2,
+              bgcolor: "#fff",
+              flexGrow: { sm: 1 },
+              overflowY: { sm: "auto" },
+              height: { xs: "400px", sm: "auto" },
+            }}
+          >
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                mb: 2,
+              }}
+            >
               <Typography variant="h6">Visualização da Árvore</Typography>
               {selectedTree && (
                 <Box>
@@ -449,14 +547,25 @@ const TreeAdminPage: React.FC = () => {
                     open={Boolean(menuAnchorEl)}
                     onClose={() => setMenuAnchorEl(null)}
                   >
-                    <MenuItem onClick={handleOpenNewTreeDialog}>Novo Raiz</MenuItem>
-                    <MenuItem onClick={handleOpenNewBranchDialog} disabled={!selectedBranchId}>
+                    <MenuItem onClick={() => handleOpenNewBranchDialog(true)}>
+                      Nova Raiz
+                    </MenuItem>
+                    <MenuItem
+                      onClick={() => handleOpenNewBranchDialog(false)}
+                      disabled={!selectedBranchId}
+                    >
                       Novo Ramo
                     </MenuItem>
-                    <MenuItem onClick={handleOpenEditBranchDialog} disabled={!selectedBranchId}>
+                    <MenuItem
+                      onClick={handleOpenEditBranchDialog}
+                      disabled={!selectedBranchId}
+                    >
                       Editar
                     </MenuItem>
-                    <MenuItem onClick={handleDeleteBranch} disabled={!selectedBranchId}>
+                    <MenuItem
+                      onClick={handleDeleteBranch}
+                      disabled={!selectedBranchId}
+                    >
                       Excluir
                     </MenuItem>
                   </Menu>
@@ -464,20 +573,10 @@ const TreeAdminPage: React.FC = () => {
               )}
             </Box>
             {selectedTree && (
-              <TreeView
-                slots={{
-                  collapseIcon: ExpandMoreIcon,
-                  expandIcon: ChevronRightIcon,
-                }}
-                onSelect={(event: React.MouseEvent<HTMLUListElement>) => {
-                  const nodeId = (event.target as HTMLElement).getAttribute('data-nodeid');
-                  if (nodeId) {
-                    setSelectedBranchId(Number(nodeId));
-                  }
-                }}
-              >
-                {renderTree(selectedTree.branches)}
-              </TreeView>
+              <SelectTableTreeView
+                nodes={selectedTree.branches}
+                onSelectBranch={(branchId: number) => setSelectedBranchId(branchId)}
+              />
             )}
           </Paper>
         </Box>
@@ -488,12 +587,15 @@ const TreeAdminPage: React.FC = () => {
         <DialogTitle>Confirmar Exclusão</DialogTitle>
         <DialogContent>
           <Typography>
-            Tem certeza de que deseja excluir esta árvore? Esta ação não pode ser desfeita.
+            Tem certeza de que deseja excluir esta árvore? Esta ação não pode
+            ser desfeita.
           </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseConfirmDialog}>Não</Button>
-          <Button onClick={handleDeleteTree} color="error">Sim</Button>
+          <Button onClick={handleDeleteTree} color="error">
+            Sim
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -556,7 +658,10 @@ const TreeAdminPage: React.FC = () => {
       </Dialog>
 
       {/* New/Edit Branch Dialog */}
-      <Dialog open={branchDialogOpen} onClose={() => setBranchDialogOpen(false)}>
+      <Dialog
+        open={branchDialogOpen}
+        onClose={() => setBranchDialogOpen(false)}
+      >
         <DialogTitle>{isNewBranch ? "Novo Ramo" : "Editar Ramo"}</DialogTitle>
         <DialogContent>
           <TextField
@@ -566,6 +671,7 @@ const TreeAdminPage: React.FC = () => {
             value={newBranchName}
             onChange={(e) => setNewBranchName(e.target.value)}
             sx={{ mb: 2, mt: 1 }}
+            required
           />
           <TextField
             label="Descrição"
@@ -577,13 +683,28 @@ const TreeAdminPage: React.FC = () => {
             onChange={(e) => setNewBranchDescription(e.target.value)}
             sx={{ mb: 2 }}
           />
-          {parentBranchId && (
-            <Typography>Parent Branch ID: {parentBranchId}</Typography>
+          <TextField
+            label="Tags"
+            variant="outlined"
+            fullWidth
+            value={newBranchTags}
+            onChange={(e) => setNewBranchTags(e.target.value)}
+            sx={{ mb: 1 }}
+            helperText="Valores separados por vírgula (ex: tag1, tag2, tag3)"
+          />
+          {parentBranchId && isNewBranch && (
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              Será criado como sub-ramo do ramo com ID: {parentBranchId}
+            </Typography>
           )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setBranchDialogOpen(false)}>Cancelar</Button>
-          <Button onClick={handleSaveBranch} variant="contained">
+          <Button
+            onClick={handleSaveBranch}
+            variant="contained"
+            disabled={!newBranchName.trim()}
+          >
             Salvar
           </Button>
         </DialogActions>
